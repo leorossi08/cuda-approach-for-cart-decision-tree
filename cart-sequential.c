@@ -87,6 +87,7 @@ void get_value_and_attribute(const double* const x, const int* const y, const in
 }
 
 char is_list(const int* const y, const int *numbers, int sch) {
+	if (sch <= 0) return 1;
 	const int value = y[*numbers++];
 	while (--sch) {
 		if (y[*numbers++] != value) return 0;
@@ -95,6 +96,12 @@ char is_list(const int* const y, const int *numbers, int sch) {
 }
 
 void create_bin_tree(btree *tree, const double *x, const int *y, const int m, const int *numbers, const int sch, const int noc) {
+	if (sch <= 0) {
+		tree->left = NULL;
+		tree->right = NULL;
+		tree->num_q = 0;
+		return;
+	}
 	if (is_list(y, numbers, sch)) {
 		tree->left = NULL;
 		tree->right = NULL;
@@ -105,8 +112,8 @@ void create_bin_tree(btree *tree, const double *x, const int *y, const int m, co
 		get_value_and_attribute(x, y, m, noc, numbers, sch, &val, &k);
 		tree->data = val;
 		tree->num_q = k;
-		int *lefts = (int*)malloc(0 * sizeof(int));
-		int *rights = (int*)malloc(0 * sizeof(int));
+		int *lefts = NULL;
+		int *rights = NULL;
 		int i, nol = 0, nor = 0;
 		for (i = 0; i < sch; i++) {
 			if (x[numbers[i] * m + k] > val) {
@@ -118,6 +125,14 @@ void create_bin_tree(btree *tree, const double *x, const int *y, const int m, co
 				lefts[nol] = numbers[i];
 				nol++;	
 			}
+		}
+		if (nol == 0 || nor == 0) {
+			tree->left = NULL;
+			tree->right = NULL;
+			tree->num_q = y[numbers[0]];
+			free(rights);
+			free(lefts);
+			return;
 		}
 		tree->right = (btree*)malloc(sizeof(btree));
 		tree->left = (btree*)malloc(sizeof(btree));
@@ -234,6 +249,7 @@ int getNumOfClass(const int* const y, const int n) {
 	memset(v, 0, n * sizeof(char));
 	for (i = 0; i < n; i++) {
 		while (i < n && v[i]) i++;
+		if (i == n) break;
 		cur = y[i];
 		for (j = i + 1; j < n; j++) {
 			if (y[j] == cur) v[j] = 1;
