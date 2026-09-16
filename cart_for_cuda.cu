@@ -324,36 +324,35 @@ void free_bin_tree(btree *tree) {
 /* ========== Helper Functions ========== */
 
 void fscanfTrainData(double *x, int *y, const int n, const int m, const char *fn) {
-    FILE *fl = fopen(fn, "r");
+    FILE *fl = fopen(fn, "rb"); // "rb" = Read Binary
     if (!fl) {
         printf("Error in opening %s file...\n", fn);
         exit(1);
     }
-    int i, j, k;
-    for (i = 0; i < n && !feof(fl); i++) {
-        k = i * m;
-        for (j = 0; j < m && !feof(fl); j++) {
-            if (fscanf(fl, "%lf", x + k + j) == 0) {}
-        }
-        if (!feof(fl)) {
-            if (fscanf(fl, "%d", y + i) == 0) {}
-        }
-    }
+    
+    // Lê TODAS as features de uma vez só (n amostras * m features)
+    if (fread(x, sizeof(double), (size_t)n * m, fl) == 0) {}
+    
+    // Lê TODOS os targets/labels de uma vez só (n amostras)
+    if (fread(y, sizeof(int), n, fl) == 0) {}
+    
     fclose(fl);
 }
 
 void fscanfTestData(double *x, const int n, const char *fn) {
-    FILE *fl = fopen(fn, "r");
+    FILE *fl = fopen(fn, "rb"); // "rb" = Read Binary
     if (!fl) {
         printf("Error in opening %s file...\n", fn);
         exit(1);
     }
-    int i;
-    for (i = 0; i < n && !feof(fl); i++) {
-        if (fscanf(fl, "%lf", x + i) == 0) {}
-    }
+    
+    // Na sua main(), 'n' já é passado como (n2 * m), então basta ler
+    if (fread(x, sizeof(double), n, fl) == 0) {}
+    
     fclose(fl);
 }
+
+
 
 void fscanfIdealSpliting(int *id, const int n, const char *fn) {
     FILE *fl = fopen(fn, "r");
