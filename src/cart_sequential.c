@@ -15,13 +15,18 @@ typedef struct btree {
 	struct btree* right;
 } btree;
 
+#define MAX_DEPTH (-1)
+#define MIN_SAMPLES_SPLIT 2
+#define MIN_SAMPLES_LEAF 1
+#define MIN_IMPURITY_DECREASE 0.0
+
 /* ========== Function Declarations ========== */
 
 /* CART algorithm functions */
 double calc_gini(const double* const x, const int m, const int* const y, const int noc, const int* const nums, const int sch, const double data, const int k, int* const left, int* const right);
-void get_value_and_attribute(const double* const x, const int* const y, const int m, const int noc, const int* const num, const int sch, double* const val, int* const k);
+int get_value_and_attribute(const double* const x, const int* const y, const int m, const int noc, const int* const num, const int sch, double* const val, int* const k, double* const best_score);
 char is_list(const int* const y, const int *numbers, int sch);
-void create_bin_tree(btree *tree, const double *x, const int *y, const int m, const int *numbers, const int sch, const int noc);
+void create_bin_tree(btree *tree, const double *x, const int *y, const int *dense_y, const int m, const int *numbers, const int sch, const int noc, const int depth);
 int get_class(const btree* tree, const double* const x);
 void get_classes(const btree* const tree, const double* const x, int* const res, int n, const int m);
 void free_bin_tree(btree *tree);
@@ -50,19 +55,19 @@ double calc_gini(const double* const x, const int m, const int* const y, const i
 			left[y[buf]]++;
 		}
 	}
-	unsigned int lefts = 0, rights = 0;	
+	long long lefts = 0, rights = 0;
 	for (i = 0; i < noc; i++) {
-		lefts += left[i] * left[i];
-		rights += right[i] * right[i];
+		lefts += (long long)left[i] * left[i];
+		rights += (long long)right[i] * right[i];
 	}
-	return (L == 0 || R == 0) ? sch : (sch - ((double)lefts / L -  (double)rights / R));
+	return (L == 0 || R == 0) ? sch : (sch - (double)lefts / L - (double)rights / R);
 }
 
-void get_value_and_attribute(const double* const x, const int* const y, const int m, const int noc, const int* const num, const int sch, double* const val, int* const k) {
+int get_value_and_attribute(const double* const x, const int* const y, const int m, const int noc, const int* const num, const int sch, double* const val, int* const k, double* const best_score) {
 	const size_t size = noc * sizeof(int);
 	int *left = (int*)calloc(noc, sizeof(int));
 	int *right = (int*)calloc(noc, sizeof(int));
-	double opt_data = x[*num * m], cur_gini, min_gini = calc_gini(x, m, y, noc, num, sch, opt_data, 0, left, right);
+	double opt_data = 0.0, cur_gini, min_gini = (double)sch;
 	int i, j, buf, opt_k = 0;
 	// for each sample
 	for (j = 0; j < sch; j++) {
@@ -73,7 +78,7 @@ void get_value_and_attribute(const double* const x, const int* const y, const in
 			memset(right, 0, size);
 			// Calculate Gini impurity
 			cur_gini = calc_gini(x, m, y, noc, num, sch, x[buf + i], i, left, right);
-			if (cur_gini < min_gini) { // Find Minimum
+			if (cur_gini < min_gini) {
 				min_gini = cur_gini;
 				opt_k = i;
 				opt_data = x[buf + i];
@@ -84,6 +89,34 @@ void get_value_and_attribute(const double* const x, const int* const y, const in
 	free(right);
 	*val = opt_data;
 	*k = opt_k;
+	*best_score = min_gini;
+	return min_gini < (double)sch;
+}
+
+int majority_class(const int* y, const int* numbers, int sch) {
+	int best_label = y[numbers[0]], best_count = 0;
+	int i, j;
+	for (i = 0; i < sch; i++) {
+		int count = 0;
+		for (j = 0; j < sch; j++) if (y[numbers[j]] == y[numbers[i]]) count++;
+		if (count > best_count) {
+			best_count = count;
+			best_label = y[numbers[i]];
+		}
+	}
+	return best_label;
+}
+
+int encode_labels(const int* y, int n, int* dense) {
+	int *labels = (int*)malloc((size_t)n * sizeof(int));
+	int count = 0, i, j;
+	for (i = 0; i < n; i++) {
+		for (j = 0; j < count; j++) if (labels[j] == y[i]) break;
+		if (j == count) labels[count++] = y[i];
+		dense[i] = j;
+	}
+	free(labels);
+	return count;
 }
 
 char is_list(const int* const y, const int *numbers, int sch) {
@@ -95,26 +128,40 @@ char is_list(const int* const y, const int *numbers, int sch) {
 	return 1;
 }
 
-void create_bin_tree(btree *tree, const double *x, const int *y, const int m, const int *numbers, const int sch, const int noc) {
+void create_bin_tree(btree *tree, const double *x, const int *y, const int *dense_y, const int m, const int *numbers, const int sch, const int noc, const int depth) {
 	if (sch <= 0) {
 		tree->left = NULL;
 		tree->right = NULL;
 		tree->num_q = 0;
 		return;
 	}
-	if (is_list(y, numbers, sch)) {
+	if (is_list(y, numbers, sch) || sch < MIN_SAMPLES_SPLIT || (MAX_DEPTH >= 0 && depth >= MAX_DEPTH)) {
 		tree->left = NULL;
 		tree->right = NULL;
-		tree->num_q = y[*numbers];
+		tree->num_q = majority_class(y, numbers, sch);
 	} else {
 		double val;
+		double best_score;
 		int k;
-		get_value_and_attribute(x, y, m, noc, numbers, sch, &val, &k);
+		int has_split = get_value_and_attribute(x, dense_y, m, noc, numbers, sch, &val, &k, &best_score);
+		double parent_score;
+		int *parent_counts = (int*)calloc((size_t)noc, sizeof(int));
+		int i;
+		for (i = 0; i < sch; i++) parent_counts[dense_y[numbers[i]]]++;
+		parent_score = sch;
+		for (i = 0; i < noc; i++) parent_score -= (double)parent_counts[i] * parent_counts[i] / sch;
+		free(parent_counts);
+		if (!has_split || best_score >= parent_score - MIN_IMPURITY_DECREASE) {
+			tree->left = NULL;
+			tree->right = NULL;
+			tree->num_q = majority_class(y, numbers, sch);
+			return;
+		}
 		tree->data = val;
 		tree->num_q = k;
 		int *lefts = NULL;
 		int *rights = NULL;
-		int i, nol = 0, nor = 0;
+		int nol = 0, nor = 0;
 		for (i = 0; i < sch; i++) {
 			if (x[numbers[i] * m + k] > val) {
 				rights = (int*)realloc(rights, (nor + 1) * sizeof(int));
@@ -126,19 +173,19 @@ void create_bin_tree(btree *tree, const double *x, const int *y, const int m, co
 				nol++;	
 			}
 		}
-		if (nol == 0 || nor == 0) {
+		if (nol < MIN_SAMPLES_LEAF || nor < MIN_SAMPLES_LEAF) {
 			tree->left = NULL;
 			tree->right = NULL;
-			tree->num_q = y[numbers[0]];
+			tree->num_q = majority_class(y, numbers, sch);
 			free(rights);
 			free(lefts);
 			return;
 		}
 		tree->right = (btree*)malloc(sizeof(btree));
 		tree->left = (btree*)malloc(sizeof(btree));
-		create_bin_tree(tree->right, x, y, m, rights, nor, noc);
+		create_bin_tree(tree->right, x, y, dense_y, m, rights, nor, noc, depth + 1);
 		free(rights);
-		create_bin_tree(tree->left, x, y, m, lefts, nol, noc);
+		create_bin_tree(tree->left, x, y, dense_y, m, lefts, nol, noc, depth + 1);
 		free(lefts);
 	}
 }
@@ -275,6 +322,7 @@ int main(int argc, char **argv) {
 	int i, noc;
 	double *xtrain = (double*)malloc(n * m * sizeof(double));
 	int *y = (int *)malloc(n * sizeof(int));
+	int *dense_y = (int *)malloc(n * sizeof(int));
 	fscanfTrainData(xtrain, y, n, m, argv[4]);
 	double *xtest = (double*)malloc(n2 * m * sizeof(double));
 	fscanfTestData(xtest, n2 * m, argv[5]);
@@ -282,12 +330,12 @@ int main(int argc, char **argv) {
 	double t1, t2;
 	t1 = clock();
 	btree *tree = (btree*)malloc(sizeof(btree));
-	noc = getNumOfClass(y, n);
+	noc = encode_labels(y, n, dense_y);
 	int *startNums = (int*)malloc(n * sizeof(int));
 	for (i = 0; i < n; i++) {
 		startNums[i] = i;
 	}
-	create_bin_tree(tree, xtrain, y, m, startNums, n, noc);
+	create_bin_tree(tree, xtrain, y, dense_y, m, startNums, n, noc, 0);
 	t1 = clock() - t1;
 	t1 /= CLOCKS_PER_SEC;
 	t2 = clock();
@@ -313,6 +361,7 @@ int main(int argc, char **argv) {
 	free(xtest);
 	free(xtrain);
 	free(y);
+	free(dense_y);
 	free_bin_tree(tree);
 	return 0;
 }

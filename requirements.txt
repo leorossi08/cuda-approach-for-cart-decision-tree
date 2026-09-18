@@ -1,0 +1,2 @@
+# No third-party Python packages are required.
+# The scripts use only Python's standard library.

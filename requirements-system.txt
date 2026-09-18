@@ -1,0 +1,9 @@
+# Ubuntu/Debian packages
+gcc
+make
+python3
+nvidia-cuda-toolkit
+
+# A working NVIDIA driver and CUDA-capable GPU are also required to run the
+# CUDA executable. The tested machine used CUDA toolkit 12.4 and a GeForce
+# MX110 (compute capability 5.0).

@@ -1,0 +1,7 @@
+build/
+data/*.bin
+results/*.txt
+__pycache__/
+*.pyc
+.vscode/*.log
+.vscode
