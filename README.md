@@ -97,8 +97,8 @@ make heavy
 ```
 
 The heavy suite tests sizes `2000,4000,8000`, classes `2,5,10`, 500 test
-samples, and two runs per scenario. The full measured report is in
-[docs/benchmark-results.md](docs/benchmark-results.md).
+samples, and two runs per scenario. The full measured report is included at
+the end of this README.
 
 Custom benchmark example:
 
@@ -158,7 +158,7 @@ scripts/
 docs/
   algorithm.md          implementation and correctness details
   data-format.md        binary file specification
-  benchmark-results.md  measured benchmark report
+  implementation-comparison.md  CPU/CUDA comparison and CUDA rationale
 data/                    generated files, ignored by Git
 results/                 generated reports, ignored by Git
 Makefile                build and test commands
